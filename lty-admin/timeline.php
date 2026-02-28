@@ -20,7 +20,7 @@ $id = $_GET['id'] ?? '';
 
 if ($action === 'delete' && $id) {
     $timeline = $db->fetchOne("SELECT year, title FROM `lty-company_timeline` WHERE id = ?", [$id]);
-    $db->delete('company_timeline', 'id = ?', [$id]);
+    $db->delete('`lty-company_timeline`', 'id = ?', [$id]);
     OperationLog::delete('timeline', '删除大事记：' . ($timeline['year'] ?? $id) . ' - ' . ($timeline['title'] ?? ''), 'company_timeline', $id);
     set_flash_message('success', '删除成功');
     redirect('lty-admin/timeline.php');
@@ -45,10 +45,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $title = trim($_POST['title'] ?? '');
         $description = trim($_POST['description'] ?? '');
         if ($action === 'add') {
-            $maxSortOrder = $db->fetchOne("SELECT MAX(sort_order) as max_sort FROM company_timeline");
+            $maxSortOrder = $db->fetchOne("SELECT MAX(sort_order) as max_sort FROM `lty-company_timeline`");
             $sort_order = ($maxSortOrder['max_sort'] ?? 0) + 1;
         } else {
-            $existingItem = $db->fetchOne("SELECT sort_order FROM company_timeline WHERE id = ?", [$id]);
+            $existingItem = $db->fetchOne("SELECT sort_order FROM `lty-company_timeline` WHERE id = ?", [$id]);
             $sort_order = $existingItem['sort_order'] ?? 0;
         }
         $status = isset($_POST['status']) ? 1 : 0;
@@ -60,7 +60,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $existingYear = null;
             if ($action === 'add') {
-                $existingYear = $db->fetchOne("SELECT id FROM `company_timeline` WHERE year = ?", [$year]);
+                $existingYear = $db->fetchOne("SELECT id FROM `lty-company_timeline` WHERE year = ?", [$year]);
             } else {
                 $existingYear = $db->fetchOne("SELECT id FROM `lty-company_timeline` WHERE year = ? AND id != ?", [$year, $id]);
             }
@@ -108,7 +108,7 @@ $timelines = $db->fetchAll("SELECT * FROM `lty-company_timeline` ORDER BY year A
 $edit_item = null;
 if (($action === 'edit' && $id) || $showModal) {
     if (!$edit_item) {
-        $edit_item = $db->fetchOne("SELECT * FROM company_timeline WHERE id = ?", [$id]);
+        $edit_item = $db->fetchOne("SELECT * FROM `lty-company_timeline` WHERE id = ?", [$id]);
     }
 }
 
