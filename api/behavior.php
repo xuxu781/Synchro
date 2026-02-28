@@ -17,7 +17,8 @@ APISecurity::checkRateLimit();
 
 header('Content-Type: application/json');
 
-$action = $_POST['action'] ?? $_GET['action'] ?? '';
+$input = json_decode(file_get_contents('php://input'), true);
+$action = $input['action'] ?? $_POST['action'] ?? $_GET['action'] ?? '';
 
 $publicActions = ['list', 'get'];
 $authRequiredActions = ['update_sort'];
