@@ -1,0 +1,43 @@
+# PHP
+*.phar
+*.log
+vendor/
+composer.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config files with sensitive data
+config.local.php
+
+# Uploads (may contain user files)
+uploads/*
+!uploads/.gitkeep
+!uploads/icons/
+
+# Logs
+logs/*
+!logs/.gitkeep
+
+# Cache
+cache/
+tmp/
+temp/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Backup files
+*.bak
+*.backup
+*~

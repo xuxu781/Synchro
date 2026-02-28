@@ -1,0 +1,40 @@
+RewriteEngine On
+
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} !^/api/
+RewriteCond %{REQUEST_URI} !^/lty-admin/
+RewriteRule ^(.*)$ index.php?page=$1 [L,QSA]
+
+<Files install.php>
+    Order Allow,Deny
+    Allow from all
+</Files>
+
+<Files config.php>
+    Order Deny,Allow
+    Deny from all
+</Files>
+
+<FilesMatch "\.(log|sql|bak|old|tmp)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
+
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "DENY"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+    Header set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+</IfModule>
+
+<IfModule mod_php7.c>
+    php_flag display_errors Off
+    php_flag log_errors On
+</IfModule>
+
+<IfModule mod_php.c>
+    php_flag display_errors Off
+    php_flag log_errors On
+</IfModule>
