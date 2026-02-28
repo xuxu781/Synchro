@@ -140,9 +140,9 @@ $user = Auth::user();
                                 <th>操作</th>
                             </tr>
                         </thead>
-                        <tbody>
+                        <tbody class="draggable-tbody">
                             <?php foreach ($behaviors as $behavior): ?>
-                                <tr>
+                                <tr data-id="<?php echo $behavior['id']; ?>" class="draggable-row" draggable="true">
                                     <td>
                                         <?php if (!empty($behavior['icon_svg'])): ?>
                                             <div style="width: 32px; height: 32px; color: #f59e0b;"><?php echo $behavior['icon_svg']; ?></div>
@@ -277,7 +277,113 @@ $user = Auth::user();
                     }, 500);
                 }, 3000);
             });
+            
+            const tbody = document.querySelector('.draggable-tbody');
+            if (!tbody) return;
+            
+            let draggedRow = null;
+            let placeholder = null;
+            
+            tbody.addEventListener('dragstart', function(e) {
+                draggedRow = e.target.closest('.draggable-row');
+                e.dataTransfer.effectAllowed = 'move';
+                draggedRow.classList.add('dragging');
+            });
+            
+            tbody.addEventListener('dragend', function(e) {
+                if (draggedRow) {
+                    draggedRow.classList.remove('dragging');
+                    draggedRow = null;
+                }
+                if (placeholder) {
+                    placeholder.remove();
+                    placeholder = null;
+                }
+            });
+            
+            tbody.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                
+                const targetRow = e.target.closest('.draggable-row');
+                if (targetRow && targetRow !== draggedRow) {
+                    const rect = targetRow.getBoundingClientRect();
+                    const midY = rect.top + rect.height / 2;
+                    
+                    if (placeholder && placeholder.parentNode) {
+                        placeholder.remove();
+                    }
+                    
+                    placeholder = document.createElement('tr');
+                    placeholder.className = 'drag-placeholder';
+                    placeholder.innerHTML = '<td colspan="6" style="padding: 10px; background: #fff9c4; border: 2px dashed #fbc02d; text-align: center; color: #f9a825;">拖放到此处</td>';
+                    
+                    if (e.clientY < midY) {
+                        targetRow.parentNode.insertBefore(placeholder, targetRow);
+                    } else {
+                        targetRow.parentNode.insertBefore(placeholder, targetRow.nextSibling);
+                    }
+                }
+            });
+            
+            tbody.addEventListener('drop', function(e) {
+                e.preventDefault();
+                
+                if (draggedRow && placeholder) {
+                    placeholder.parentNode.insertBefore(draggedRow, placeholder);
+                    placeholder.remove();
+                    placeholder = null;
+                    
+                    updateSortOrder(tbody);
+                }
+            });
+            
+            function updateSortOrder(tbody) {
+                const rows = tbody.querySelectorAll('.draggable-row');
+                
+                rows.forEach((row, index) => {
+                    const sortCell = row.querySelector('td:nth-child(4)');
+                    if (sortCell) {
+                        sortCell.textContent = index + 1;
+                    }
+                });
+                
+                fetch('../api/behavior.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'update_sort',
+                        data: rows.map((row, index) => ({
+                            id: row.dataset.id,
+                            sort_order: index + 1
+                        }))
+                    })
+                }).then(response => response.json())
+                  .then(result => {
+                      if (result.success) {
+                          location.reload();
+                      }
+                  });
+            }
         });
     </script>
+    
+    <style>
+        .draggable-row {
+            cursor: move;
+            transition: background-color 0.2s ease;
+        }
+        
+        .draggable-row.dragging {
+            opacity: 0.5;
+            background-color: #f5f5f5;
+        }
+        
+        .drag-placeholder {
+            background-color: #e3f2fd !important;
+        }
+    </style>
 </body>
 </html>

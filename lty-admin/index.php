@@ -345,6 +345,7 @@ if (!$hasRole) {
 }
 
 $canViewDashboard = Auth::isSuperAdmin() || Auth::hasPermission('dashboard_view');
+$canViewMessages = Auth::isSuperAdmin() || Auth::hasPermission('messages_manage');
 
 if ($canViewDashboard) {
     $stats = [
@@ -634,15 +635,26 @@ if ($canViewDashboard) {
                 <div class="messages-card">
                     <div class="card-title-bar">
                         <h3>最新留言</h3>
+                        <?php if ($canViewMessages): ?>
                         <a href="messages.php" class="view-all-link">
                             查看全部
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <polyline points="9 18 15 12 9 6"/>
                             </svg>
                         </a>
+                        <?php endif; ?>
                     </div>
                     <div class="messages-wrap">
-                        <?php if (empty($recent_messages)): ?>
+                        <?php if (!$canViewMessages): ?>
+                            <div class="no-messages">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                                    <circle cx="12" cy="16" r="1"/>
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                </svg>
+                                <p>没有授权</p>
+                            </div>
+                        <?php elseif (empty($recent_messages)): ?>
                             <div class="no-messages">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>

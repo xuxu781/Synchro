@@ -140,17 +140,17 @@ $user = Auth::user();
                         <table class="table">
                             <thead>
                                 <tr>
-                                    <th style="width: 80px;">图标</th>
+                                    <th>图标</th>
                                     <th>标题</th>
                                     <th>描述</th>
-                                    <th style="width: 80px;">排序</th>
-                                    <th style="width: 100px;">状态</th>
-                                    <th style="width: 200px;">操作</th>
+                                    <th>排序</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody class="draggable-tbody">
                                 <?php foreach ($business_areas as $area): ?>
-                                    <tr>
+                                    <tr data-id="<?php echo $area['id']; ?>" class="draggable-row" draggable="true">
                                         <td style="font-size: 24px;">
                                             <span class="business-icon-preview"><?php echo $area['icon_svg']; ?></span>
                                         </td>
@@ -166,8 +166,8 @@ $user = Auth::user();
                                         </td>
                                         <td>
                                             <div class="actions">
-                                                <a href="business.php?action=edit&id=<?php echo $area['id']; ?>" class="btn btn-sm btn-outline">编辑</a>
-                                                <a href="business.php?action=delete&id=<?php echo $area['id']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('确定要删除吗？');">删除</a>
+                                                <a href="business.php?action=edit&id=<?php echo $area['id']; ?>" class="btn btn-sm btn-outline" draggable="false">编辑</a>
+                                                <a href="business.php?action=delete&id=<?php echo $area['id']; ?>" class="btn btn-sm btn-danger" draggable="false" onclick="return confirm('确定要删除吗？');">删除</a>
                                             </div>
                                         </td>
                                     </tr>
@@ -282,6 +282,108 @@ $user = Auth::user();
                     }, 500);
                 }, 3000);
             });
+            
+            const tbody = document.querySelector('.draggable-tbody');
+            if (!tbody) return;
+            
+            let draggedRow = null;
+            let placeholder = null;
+            
+            const rows = tbody.querySelectorAll('.draggable-row');
+            
+            rows.forEach((row, index) => {
+                row.addEventListener('dragstart', function(e) {
+                    draggedRow = row;
+                    draggedRow.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/html', draggedRow.innerHTML);
+                });
+                
+                row.addEventListener('dragend', function(e) {
+                    if (draggedRow) {
+                        draggedRow.classList.remove('dragging');
+                        if (placeholder) {
+                            placeholder.remove();
+                            placeholder = null;
+                        }
+                        draggedRow = null;
+                    }
+                });
+            });
+            
+            tbody.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                
+                const targetRow = e.target.closest('.draggable-row');
+                if (targetRow && targetRow !== draggedRow) {
+                    const rect = targetRow.getBoundingClientRect();
+                    const midY = rect.top + rect.height / 2;
+                    
+                    if (!placeholder) {
+                        placeholder = document.createElement('tr');
+                        placeholder.className = 'drag-placeholder';
+                        placeholder.innerHTML = '<td colspan="6" style="padding: 10px; background: #fff9c4; border: 2px dashed #fbc02d; text-align: center; color: #f9a825;">拖放到此处</td>';
+                    }
+                    
+                    if (e.clientY < midY) {
+                        tbody.insertBefore(placeholder, targetRow);
+                    } else {
+                        tbody.insertBefore(placeholder, targetRow.nextSibling);
+                    }
+                }
+            });
+            
+            tbody.addEventListener('drop', function(e) {
+                e.preventDefault();
+                
+                if (draggedRow && placeholder) {
+                    tbody.insertBefore(draggedRow, placeholder);
+                    placeholder.remove();
+                    placeholder = null;
+                    
+                    updateSortOrder();
+                }
+            });
+            
+            function updateSortOrder() {
+                const rows = tbody.querySelectorAll('.draggable-row');
+                const ids = [];
+                
+                rows.forEach((row, index) => {
+                    const id = row.dataset.id;
+                    ids.push(id);
+                    
+                    const sortCell = row.querySelector('td:nth-child(4)');
+                    if (sortCell) {
+                        sortCell.textContent = index + 1;
+                    }
+                });
+                
+                fetch('../api/business.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'update_sort',
+                        data: rows.map((row, index) => ({
+                            id: row.dataset.id,
+                            sort_order: index + 1
+                        }))
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (!data.success) {
+                        console.error('排序更新失败:', data.message);
+                        alert('排序更新失败，请刷新页面重试');
+                    }
+                })
+                .catch(error => {
+                    console.error('排序更新错误:', error);
+                });
+            }
         });
     </script>
     <style>
@@ -290,6 +392,16 @@ $user = Auth::user();
             height: 24px;
             fill: currentColor;
             vertical-align: middle;
+        }
+        
+        .draggable-row {
+            cursor: move;
+            transition: background-color 0.2s ease;
+        }
+        
+        .draggable-row.dragging {
+            opacity: 0.5;
+            background-color: #f5f5f5;
         }
     </style>
 </body>

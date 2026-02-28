@@ -26,7 +26,7 @@ $db = Database::getInstance();
 
 $cultures = $db->fetchAll("SELECT * FROM `lty-company_culture` WHERE status = 1 ORDER BY sort_order ASC, id ASC");
 $behaviors = $db->fetchAll("SELECT * FROM `lty-company_behavior` WHERE status = 1 ORDER BY sort_order ASC, id ASC");
-$timelines = $db->fetchAll("SELECT * FROM `lty-company_timeline` WHERE status = 1 ORDER BY year ASC, id ASC");
+$timelines = $db->fetchAll("SELECT * FROM `lty-company_timeline` WHERE status = 1 ORDER BY sort_order ASC, id ASC");
 $slides = $db->fetchAll("SELECT * FROM `lty-mission_slides` WHERE status = 1 ORDER BY sort_order ASC, id ASC");
 $categories = $db->fetchAll("SELECT * FROM `lty-product_categories` WHERE status = 1 ORDER BY sort_order ASC, id ASC");
 

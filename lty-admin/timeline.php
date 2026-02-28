@@ -103,7 +103,7 @@ if ($error && ($action === 'add' || ($action === 'edit' && $id))) {
     }
 }
 
-$timelines = $db->fetchAll("SELECT * FROM `lty-company_timeline` ORDER BY year ASC, id ASC");
+$timelines = $db->fetchAll("SELECT * FROM `lty-company_timeline` ORDER BY sort_order ASC, id ASC");
 
 $edit_item = null;
 if (($action === 'edit' && $id) || $showModal) {
@@ -155,7 +155,7 @@ $user = Auth::user();
                         </thead>
                         <tbody class="draggable-tbody">
                             <?php foreach ($timelines as $timeline): ?>
-                                <tr data-id="<?php echo $timeline['id']; ?>" class="draggable-row">
+                                <tr data-id="<?php echo $timeline['id']; ?>" class="draggable-row" draggable="true">
                                     <td><?php echo htmlspecialchars($timeline['year']); ?></td>
                                     <td><?php echo htmlspecialchars($timeline['title']); ?></td>
                                     <td><?php echo htmlspecialchars(mb_substr($timeline['description'], 0, 50)); ?>...</td>
@@ -289,6 +289,104 @@ $user = Auth::user();
                     }, 500);
                 }, 3000);
             });
+            
+            const tbody = document.querySelector('.draggable-tbody');
+            if (!tbody) return;
+            
+            let draggedRow = null;
+            let placeholder = null;
+            
+            const rows = tbody.querySelectorAll('.draggable-row');
+            
+            rows.forEach((row, index) => {
+                row.addEventListener('dragstart', function(e) {
+                    draggedRow = row;
+                    draggedRow.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/html', draggedRow.innerHTML);
+                });
+                
+                row.addEventListener('dragend', function(e) {
+                    if (draggedRow) {
+                        draggedRow.classList.remove('dragging');
+                        if (placeholder) {
+                            placeholder.remove();
+                            placeholder = null;
+                        }
+                        draggedRow = null;
+                    }
+                });
+            });
+            
+            tbody.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                
+                const targetRow = e.target.closest('.draggable-row');
+                if (targetRow && targetRow !== draggedRow) {
+                    const rect = targetRow.getBoundingClientRect();
+                    const midY = rect.top + rect.height / 2;
+                    
+                    if (!placeholder) {
+                        placeholder = document.createElement('tr');
+                        placeholder.className = 'drag-placeholder';
+                        placeholder.innerHTML = '<td colspan="6" style="padding: 10px; background: #fff9c4; border: 2px dashed #fbc02d; text-align: center; color: #f9a825;">拖放到此处</td>';
+                    }
+                    
+                    if (e.clientY < midY) {
+                        tbody.insertBefore(placeholder, targetRow);
+                    } else {
+                        tbody.insertBefore(placeholder, targetRow.nextSibling);
+                    }
+                }
+            });
+            
+            tbody.addEventListener('drop', function(e) {
+                e.preventDefault();
+                
+                if (draggedRow && placeholder) {
+                    tbody.insertBefore(draggedRow, placeholder);
+                    placeholder.remove();
+                    placeholder = null;
+                    
+                    updateSortOrder();
+                }
+            });
+            
+            function updateSortOrder() {
+                const rows = tbody.querySelectorAll('.draggable-row');
+                const ids = [];
+                
+                rows.forEach((row, index) => {
+                    const id = row.dataset.id;
+                    ids.push(id);
+                    
+                    const sortCell = row.querySelector('td:nth-child(4)');
+                    if (sortCell) {
+                        sortCell.textContent = index + 1;
+                    }
+                });
+                
+                fetch('../api/timeline.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: 'update_sort',
+                        data: rows.map((row, index) => ({
+                            id: row.dataset.id,
+                            sort_order: index + 1
+                        }))
+                    })
+                }).then(response => response.json())
+                  .then(result => {
+                      if (!result.success) {
+                          console.error('排序更新失败:', result.message);
+                          alert('排序更新失败，请刷新页面重试');
+                      }
+                  });
+            }
         });
     </script>
 
@@ -304,7 +402,7 @@ $user = Auth::user();
         }
         
         .drag-placeholder {
-            background-color: #fff9c4 !important;
+            background-color: #e3f2fd !important;
         }
     </style>
 </body>
