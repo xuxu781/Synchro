@@ -1264,106 +1264,94 @@ $user = Auth::user();
                 window.location.href = currentUrl.toString();
             }
             
+            initDragSort();
+        });
+        
+        function initDragSort() {
             const tbodies = document.querySelectorAll('.draggable-tbody');
+            const filterCategory = document.getElementById('filterCategory')?.value || '';
             
             tbodies.forEach(tbody => {
+                const isProductsTab = tbody.closest('#productsTab') !== null;
+                
+                if (isProductsTab && filterCategory) {
+                    return;
+                }
+                
+                const rows = tbody.querySelectorAll('.draggable-row');
                 let draggedRow = null;
                 let placeholder = null;
                 
-                tbody.addEventListener('dragstart', function(e) {
-                    draggedRow = e.target.closest('.draggable-row');
-                    e.dataTransfer.effectAllowed = 'move';
-                    draggedRow.classList.add('dragging');
-                    e.dataTransfer.setData('text/html', draggedRow.innerHTML);
-                });
-                
-                tbody.addEventListener('dragend', function(e) {
-                    if (draggedRow) {
-                        draggedRow.classList.remove('dragging');
-                        if (placeholder) {
-                            placeholder.remove();
-                            placeholder = null;
-                        }
-                        draggedRow = null;
-                    }
-                });
-                
-                tbody.addEventListener('dragover', function(e) {
-                    e.preventDefault();
-                    e.dataTransfer.dropEffect = 'move';
-                    
-                    const targetRow = e.target.closest('.draggable-row');
-                    if (targetRow && targetRow !== draggedRow) {
-                        const rect = targetRow.getBoundingClientRect();
-                        const midY = rect.top + rect.height / 2;
+                rows.forEach(row => {
+                    row.addEventListener('dragstart', function(e) {
+                        draggedRow = this;
+                        this.style.opacity = '0.5';
                         
-                        if (!placeholder) {
-                            placeholder = document.createElement('tr');
-                            placeholder.className = 'drag-placeholder';
-                            placeholder.innerHTML = '<td colspan="6" style="padding: 10px; background: #fff9c4; border: 2px dashed #fbc02d; text-align: center; color: #f9a825;">拖放到此处</td>';
-                        }
-                        
-                        if (e.clientY < midY) {
-                            tbody.insertBefore(placeholder, targetRow);
-                        } else {
-                            tbody.insertBefore(placeholder, targetRow.nextSibling);
-                        }
-                    }
-                });
-                
-                tbody.addEventListener('drop', function(e) {
-                    e.preventDefault();
-                    
-                    if (draggedRow && placeholder) {
-                        tbody.insertBefore(draggedRow, placeholder);
-                        placeholder.remove();
-                        placeholder = null;
-                        
-                        updateSortOrder(tbody);
-                    }
-                });
-                
-                function updateSortOrder(tbody) {
-                    const rows = tbody.querySelectorAll('.draggable-row');
-                    const ids = [];
-                    
-                    rows.forEach((row, index) => {
-                        const id = row.dataset.id;
-                        ids.push(id);
-                        
-                        const sortCell = row.querySelector('td:nth-child(4)');
-                        if (sortCell) {
-                            sortCell.textContent = index + 1;
-                        }
+                        placeholder = document.createElement('tr');
+                        placeholder.className = 'drag-placeholder';
+                        placeholder.innerHTML = '<td colspan="6">拖放到此处</td>';
                     });
                     
-                    const activeTab = document.querySelector('.tab-content.active');
-                    const isProducts = activeTab && activeTab.id === 'productsTab';
+                    row.addEventListener('dragend', function(e) {
+                        this.style.opacity = '1';
+                        if (placeholder && placeholder.parentNode) {
+                            placeholder.remove();
+                        }
+                        placeholder = null;
+                        draggedRow = null;
+                        saveSortOrder(tbody);
+                    });
                     
-                    fetch('../api/products.php', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            action: isProducts ? 'update_sort' : 'update_category_sort',
-                            data: rows.map((row, index) => ({
-                                id: row.dataset.id,
-                                sort_order: index + 1
-                            }))
-                        })
-                    }).then(response => response.json())
-                      .then(result => {
-                          if (result.success) {
-                              location.reload();
-                          }
-                      });
+                    row.addEventListener('dragover', function(e) {
+                        e.preventDefault();
+                        if (draggedRow && draggedRow !== this) {
+                            const rect = this.getBoundingClientRect();
+                            const midY = rect.top + rect.height / 2;
+                            
+                            if (placeholder.parentNode) {
+                                placeholder.remove();
+                            }
+                            
+                            if (e.clientY < midY) {
+                                this.parentNode.insertBefore(draggedRow, this);
+                            } else {
+                                this.parentNode.insertBefore(draggedRow, this.nextSibling);
+                            }
+                            
+                            if (e.clientY < midY) {
+                                this.parentNode.insertBefore(placeholder, this);
+                            } else {
+                                this.parentNode.insertBefore(placeholder, this.nextSibling);
+                            }
+                        }
+                    });
+                });
+            });
+        }
+        
+        function saveSortOrder(tbody) {
+            const rows = tbody.querySelectorAll('.draggable-row');
+            const ids = Array.from(rows).map(row => parseInt(row.dataset.id));
+            
+            const isProducts = tbody.closest('#productsTab') !== null;
+            const action = isProducts ? 'update_sort' : 'update_category_sort';
+            
+            fetch('/api/products.php?action=' + action, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify({ids: ids})
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (!result.success) {
+                    alert('排序更新失败: ' + result.message);
                 }
             });
-        });
+        }
     </script>
     <style>
-        .image-preview-item:hover {
+        .image-preview-item:hover{
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
         }
@@ -1372,17 +1360,21 @@ $user = Auth::user();
             cursor: grabbing;
         }
         
-        .drag-placeholder {
-            animation: pulse 1.5s ease-in-out infinite;
+        .draggable-row {
+            cursor: move;
+            transition: all 0.2s ease;
         }
         
-        @keyframes pulse {
-            0%, 100% {
-                opacity: 1;
-            }
-            50% {
-                opacity: 0.7;
-            }
+        .drag-placeholder {
+            background: #fff9c4 !important;
+        }
+        
+        .drag-placeholder td {
+            padding: 12px;
+            text-align: center;
+            border: 2px dashed #fbc02d;
+            color: #f9a825;
+            font-weight: 500;
         }
     </style>
     

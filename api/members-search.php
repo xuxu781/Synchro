@@ -14,19 +14,29 @@ require_once __DIR__ . '/../includes/functions.php';
 header('Content-Type: application/json');
 
 $search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$perPage = 10;
+$offset = ($page - 1) * $perPage;
 
 try {
     $db = Database::getInstance();
     
     if ($search) {
         $searchParam = '%' . $search . '%';
+        $totalCount = $db->fetchOne(
+            "SELECT COUNT(*) as count FROM `lty-team_members` WHERE name LIKE ? OR position LIKE ? OR employee_id LIKE ? OR email LIKE ? OR phone LIKE ?",
+            [$searchParam, $searchParam, $searchParam, $searchParam, $searchParam]
+        )['count'];
         $members = $db->fetchAll(
-            "SELECT * FROM `lty-team_members` WHERE name LIKE ? OR position LIKE ? OR employee_id LIKE ? OR email LIKE ? OR phone LIKE ? ORDER BY sort_order ASC, id ASC",
+            "SELECT * FROM `lty-team_members` WHERE name LIKE ? OR position LIKE ? OR employee_id LIKE ? OR email LIKE ? OR phone LIKE ? ORDER BY sort_order DESC, id DESC LIMIT {$offset}, {$perPage}",
             [$searchParam, $searchParam, $searchParam, $searchParam, $searchParam]
         );
     } else {
-        $members = $db->fetchAll("SELECT * FROM `lty-team_members` ORDER BY sort_order ASC, id ASC");
+        $totalCount = $db->fetchOne("SELECT COUNT(*) as count FROM `lty-team_members`")['count'];
+        $members = $db->fetchAll("SELECT * FROM `lty-team_members` ORDER BY sort_order DESC, id DESC LIMIT {$offset}, {$perPage}");
     }
+    
+    $totalPages = ceil($totalCount / $perPage);
     
     $html = '';
     foreach ($members as $member) {
@@ -61,7 +71,27 @@ try {
         $html = '<tr><td colspan="8" style="text-align: center; padding: 40px; color: #999;">暂无数据</td></tr>';
     }
     
-    echo json_encode(['success' => true, 'html' => $html]);
+    $paginationHtml = '';
+    if ($totalPages > 1) {
+        $paginationHtml = '<div class="pagination">';
+        if ($page > 1) {
+            $paginationHtml .= '<a href="javascript:void(0)" onclick="loadPage(' . ($page - 1) . ')" class="btn btn-outline">上一页</a>';
+        }
+        $paginationHtml .= '<span class="page-info">第 ' . $page . ' / ' . $totalPages . ' 页，共 ' . number_format($totalCount) . ' 条</span>';
+        if ($page < $totalPages) {
+            $paginationHtml .= '<a href="javascript:void(0)" onclick="loadPage(' . ($page + 1) . ')" class="btn btn-outline">下一页</a>';
+        }
+        $paginationHtml .= '</div>';
+    }
+    
+    echo json_encode([
+        'success' => true, 
+        'html' => $html, 
+        'pagination' => $paginationHtml,
+        'page' => $page,
+        'totalPages' => $totalPages,
+        'totalCount' => $totalCount
+    ]);
     
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'message' => $e->getMessage()]);

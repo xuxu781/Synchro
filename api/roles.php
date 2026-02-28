@@ -17,50 +17,43 @@ APISecurity::checkRateLimit();
 
 header('Content-Type: application/json');
 
-$action = $_POST['action'] ?? $_GET['action'] ?? '';
-
-$publicActions = ['roles'];
-$authRequiredActions = ['update_sort'];
-
-if (in_array($action, $authRequiredActions)) {
-    require_auth();
-}
+$db = Database::getInstance();
+$action = $_GET['action'] ?? '';
 
 switch ($action) {
     case 'roles':
         try {
-            $db = Database::getInstance();
             $roles = $db->fetchAll("SELECT id, name, slug, description, sort_order, status FROM `lty-roles` WHERE status = 1 ORDER BY sort_order ASC, id ASC");
             json_response(['success' => true, 'data' => $roles]);
         } catch (Exception $e) {
-            json_response(['error' => 'Failed to fetch roles'], 500);
+            json_response(['success' => false, 'message' => '获取列表失败: ' . $e->getMessage()], 500);
         }
         break;
         
     case 'update_sort':
-        $input = json_decode(file_get_contents('php://input'), true);
-        $data = $input['data'] ?? [];
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            json_response(['success' => false, 'message' => 'Method not allowed'], 405);
+        }
         
-        if (empty($data)) {
-            json_response(['error' => 'Invalid parameters'], 400);
+        require_auth();
+        
+        $data = json_decode(file_get_contents('php://input'), true);
+        
+        if (!isset($data['data']) || !is_array($data['data'])) {
+            json_response(['success' => false, 'message' => '数据格式错误'], 400);
         }
         
         try {
-            $db = Database::getInstance();
-            $db->beginTransaction();
-            
-            foreach ($data as $item) {
-                $db->update('`lty-roles`', ['sort_order' => $item['sort_order']], 'id = ?', [$item['id']]);
+            foreach ($data['data'] as $item) {
+                $db->update('`lty-roles`', ['sort_order' => intval($item['sort_order'])], 'id = ?', [intval($item['id'])]);
             }
             
-            $db->commit();
             json_response(['success' => true, 'message' => '排序更新成功']);
         } catch (Exception $e) {
-            $db->rollBack();
-            json_response(['error' => 'Failed to update sort order'], 500);
+            json_response(['success' => false, 'message' => '更新排序失败: ' . $e->getMessage()], 500);
         }
         break;
         
     default:
-        json_response(['error' => 'Invalid action'], 400);
+        json_response(['success' => false, 'message' => 'Invalid action'], 400);
 }

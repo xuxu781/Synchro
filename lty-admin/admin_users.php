@@ -18,6 +18,10 @@ $db = Database::getInstance();
 $action = $_GET['action'] ?? '';
 $id = $_GET['id'] ?? '';
 
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$perPage = 10;
+$offset = ($page - 1) * $perPage;
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $post_action = $_POST['action'] ?? '';
     $post_id = $_POST['id'] ?? '';
@@ -223,22 +227,31 @@ $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
 if ($search) {
     $searchParam = '%' . $search . '%';
+    $totalCount = $db->fetchOne(
+        "SELECT COUNT(*) as count FROM `lty-admin_users` u WHERE u.username LIKE ? OR u.email LIKE ? OR u.name LIKE ?",
+        [$searchParam, $searchParam, $searchParam]
+    )['count'];
     $adminUsers = $db->fetchAll(
         "SELECT u.*, r.name as role_name 
          FROM `lty-admin_users` u 
          LEFT JOIN `lty-roles` r ON u.role_id = r.id 
          WHERE u.username LIKE ? OR u.email LIKE ? OR u.name LIKE ? 
-         ORDER BY u.id DESC",
+         ORDER BY u.updated_at DESC, u.id DESC
+         LIMIT {$offset}, {$perPage}",
         [$searchParam, $searchParam, $searchParam]
     );
 } else {
+    $totalCount = $db->fetchOne("SELECT COUNT(*) as count FROM `lty-admin_users`")['count'];
     $adminUsers = $db->fetchAll(
         "SELECT u.*, r.name as role_name 
          FROM `lty-admin_users` u 
          LEFT JOIN `lty-roles` r ON u.role_id = r.id 
-         ORDER BY u.id DESC"
+         ORDER BY u.updated_at DESC, u.id DESC
+         LIMIT {$offset}, {$perPage}"
     );
 }
+
+$totalPages = ceil($totalCount / $perPage);
 
 $roles = $db->fetchAll("SELECT id, name, slug FROM `lty-roles` WHERE status = 1 ORDER BY sort_order ASC");
 
@@ -375,6 +388,20 @@ $user = Auth::user();
                     </table>
                 </div>
             </div>
+            
+            <?php if ($totalPages > 1): ?>
+                <div class="pagination" style="border-top: 1px solid #e5e7eb;">
+                    <?php if ($page > 1): ?>
+                        <a href="?<?php echo http_build_query(array_filter(['search' => $search, 'page' => $page - 1])); ?>" class="btn btn-outline">上一页</a>
+                    <?php endif; ?>
+                    
+                    <span class="page-info">第 <?php echo $page; ?> / <?php echo $totalPages; ?> 页，共 <?php echo number_format($totalCount); ?> 条</span>
+                    
+                    <?php if ($page < $totalPages): ?>
+                        <a href="?<?php echo http_build_query(array_filter(['search' => $search, 'page' => $page + 1])); ?>" class="btn btn-outline">下一页</a>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
         </div>
 
         <div class="main-footer">
@@ -504,6 +531,17 @@ $user = Auth::user();
                             window.location.href = 'admin_users.php';
                         }
                     }
+                });
+                
+                let searchTimeout;
+                searchInput.addEventListener('input', function(e) {
+                    clearTimeout(searchTimeout);
+                    searchTimeout = setTimeout(function() {
+                        const searchValue = searchInput.value.trim();
+                        if (searchValue.length >= 2 || searchValue.length === 0) {
+                            window.location.href = 'admin_users.php' + (searchValue ? '?search=' + encodeURIComponent(searchValue) : '');
+                        }
+                    }, 500);
                 });
             }
         });

@@ -663,13 +663,13 @@ $user = Auth::user();
                 function updateSortOrder(tbody) {
                     const rows = tbody.querySelectorAll('.draggable-row');
                     
-                    fetch('../api/roles.php', {
+                    fetch('/api/roles.php?action=update_sort', {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
                         },
+                        credentials: 'same-origin',
                         body: JSON.stringify({
-                            action: 'update_sort',
                             data: Array.from(rows).map((row, index) => ({
                                 id: row.dataset.id,
                                 sort_order: index + 1

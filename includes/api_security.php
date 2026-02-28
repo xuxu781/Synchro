@@ -242,7 +242,7 @@ function require_auth() {
         APISecurity::logSecurityEvent('unauthorized_access', [
             'endpoint' => $_SERVER['REQUEST_URI']
         ]);
-        json_response(['error' => '未授权访问'], 401);
+        json_response(['success' => false, 'message' => '未授权访问'], 401);
     }
 }
 

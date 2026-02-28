@@ -17,7 +17,8 @@ APISecurity::checkRateLimit();
 
 header('Content-Type: application/json');
 
-$action = $_POST['action'] ?? $_GET['action'] ?? '';
+$input = json_decode(file_get_contents('php://input'), true);
+$action = $_GET['action'] ?? $_POST['action'] ?? $input['action'] ?? '';
 
 $publicActions = ['product', 'products', 'categories', 'updates', 'get_updates', 'get_update', 'products_paginated'];
 $authRequiredActions = ['update_sort', 'update_category_sort', 'add_update', 'edit_update', 'delete_update', 'reorder_updates'];
@@ -132,50 +133,54 @@ switch ($action) {
         break;
         
     case 'update_sort':
-        $input = json_decode(file_get_contents('php://input'), true);
-        $data = $input['data'] ?? [];
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            json_response(['success' => false, 'message' => 'Method not allowed'], 405);
+        }
         
-        if (empty($data)) {
-            json_response(['error' => 'Invalid parameters'], 400);
+        require_auth();
+        
+        $data = json_decode(file_get_contents('php://input'), true);
+        
+        if (!isset($data['ids']) || !is_array($data['ids'])) {
+            json_response(['success' => false, 'message' => '数据格式错误'], 400);
         }
         
         try {
             $db = Database::getInstance();
-            $db->beginTransaction();
             
-            foreach ($data as $item) {
-                $db->update('`lty-products`', ['sort_order' => $item['sort_order']], 'id = ?', [$item['id']]);
+            foreach ($data['ids'] as $index => $id) {
+                $db->update('`lty-products`', ['sort_order' => $index + 1], 'id = ?', [intval($id)]);
             }
             
-            $db->commit();
-            json_response(['success' => true]);
+            json_response(['success' => true, 'message' => '排序更新成功']);
         } catch (Exception $e) {
-            $db->rollback();
-            json_response(['error' => 'Failed to reorder products'], 500);
+            json_response(['success' => false, 'message' => '更新排序失败: ' . $e->getMessage()], 500);
         }
         break;
         
     case 'update_category_sort':
-        $input = json_decode(file_get_contents('php://input'), true);
-        $data = $input['data'] ?? [];
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            json_response(['success' => false, 'message' => 'Method not allowed'], 405);
+        }
         
-        if (empty($data)) {
-            json_response(['error' => 'Invalid parameters'], 400);
+        require_auth();
+        
+        $data = json_decode(file_get_contents('php://input'), true);
+        
+        if (!isset($data['ids']) || !is_array($data['ids'])) {
+            json_response(['success' => false, 'message' => '数据格式错误'], 400);
         }
         
         try {
             $db = Database::getInstance();
-            $db->beginTransaction();
             
-            foreach ($data as $item) {
-                $db->update('`lty-product_categories`', ['sort_order' => $item['sort_order']], 'id = ?', [$item['id']]);
+            foreach ($data['ids'] as $index => $id) {
+                $db->update('`lty-product_categories`', ['sort_order' => $index + 1], 'id = ?', [intval($id)]);
             }
             
-            $db->commit();
-            json_response(['success' => true]);
+            json_response(['success' => true, 'message' => '排序更新成功']);
         } catch (Exception $e) {
-            $db->rollback();
-            json_response(['error' => 'Failed to reorder categories'], 500);
+            json_response(['success' => false, 'message' => '更新排序失败: ' . $e->getMessage()], 500);
         }
         break;
         
@@ -321,7 +326,6 @@ switch ($action) {
         break;
         
     case 'reorder_updates':
-        $input = json_decode(file_get_contents('php://input'), true);
         $product_id = intval($input['product_id'] ?? 0);
         $order = $input['order'] ?? [];
         

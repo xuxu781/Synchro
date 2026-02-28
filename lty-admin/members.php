@@ -18,6 +18,10 @@ $db = Database::getInstance();
 $action = $_GET['action'] ?? '';
 $id = $_GET['id'] ?? '';
 
+$page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+$perPage = 10;
+$offset = ($page - 1) * $perPage;
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $post_action = $_POST['action'] ?? '';
     $post_id = $_POST['id'] ?? '';
@@ -279,13 +283,20 @@ $search = isset($_GET['search']) ? trim($_GET['search']) : '';
 
 if ($search) {
     $searchParam = '%' . $search . '%';
+    $totalCount = $db->fetchOne(
+        "SELECT COUNT(*) as count FROM `lty-team_members` WHERE name LIKE ? OR position LIKE ? OR employee_id LIKE ? OR email LIKE ? OR phone LIKE ?",
+        [$searchParam, $searchParam, $searchParam, $searchParam, $searchParam]
+    )['count'];
     $members = $db->fetchAll(
-        "SELECT * FROM `lty-team_members` WHERE name LIKE ? OR position LIKE ? OR employee_id LIKE ? OR email LIKE ? OR phone LIKE ? ORDER BY sort_order ASC, id ASC",
+        "SELECT * FROM `lty-team_members` WHERE name LIKE ? OR position LIKE ? OR employee_id LIKE ? OR email LIKE ? OR phone LIKE ? ORDER BY sort_order DESC, id DESC LIMIT {$offset}, {$perPage}",
         [$searchParam, $searchParam, $searchParam, $searchParam, $searchParam]
     );
 } else {
-    $members = $db->fetchAll("SELECT * FROM `lty-team_members` ORDER BY sort_order ASC, id ASC");
+    $totalCount = $db->fetchOne("SELECT COUNT(*) as count FROM `lty-team_members`")['count'];
+    $members = $db->fetchAll("SELECT * FROM `lty-team_members` ORDER BY sort_order DESC, id DESC LIMIT {$offset}, {$perPage}");
 }
+
+$totalPages = ceil($totalCount / $perPage);
 
 $user = Auth::user();
 ?>
@@ -383,6 +394,20 @@ $user = Auth::user();
                     </table>
                 </div>
             </div>
+            
+            <?php if ($totalPages > 1): ?>
+                <div class="pagination" style="border-top: 1px solid #e5e7eb;">
+                    <?php if ($page > 1): ?>
+                        <a href="?<?php echo http_build_query(array_filter(['search' => $search, 'page' => $page - 1])); ?>" class="btn btn-outline">上一页</a>
+                    <?php endif; ?>
+                    
+                    <span class="page-info">第 <?php echo $page; ?> / <?php echo $totalPages; ?> 页，共 <?php echo number_format($totalCount); ?> 条</span>
+                    
+                    <?php if ($page < $totalPages): ?>
+                        <a href="?<?php echo http_build_query(array_filter(['search' => $search, 'page' => $page + 1])); ?>" class="btn btn-outline">下一页</a>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
         </div>
 
         <div class="main-footer">
@@ -750,10 +775,25 @@ $user = Auth::user();
             }
         });
         
+        let currentPage = <?php echo $page; ?>;
+        let currentSearch = '<?php echo htmlspecialchars($search); ?>';
+        
         function searchMembers(keyword) {
+            currentPage = 1;
+            currentSearch = keyword;
+            loadMembers();
+        }
+        
+        function loadPage(page) {
+            currentPage = page;
+            loadMembers();
+        }
+        
+        function loadMembers() {
             const tbody = document.getElementById('membersTableBody');
             const url = new URL(window.location.origin + '/api/members-search.php');
-            url.searchParams.set('search', keyword);
+            url.searchParams.set('search', currentSearch);
+            url.searchParams.set('page', currentPage);
             
             fetch(url.toString())
                 .then(response => response.json())
@@ -762,8 +802,16 @@ $user = Auth::user();
                         tbody.innerHTML = data.html;
                         const clearBtn = document.querySelector('.search-form .btn-outline');
                         if (clearBtn) {
-                            clearBtn.style.display = keyword ? 'inline-flex' : 'none';
+                            clearBtn.style.display = currentSearch ? 'inline-flex' : 'none';
                         }
+                        
+                        let paginationContainer = document.getElementById('paginationContainer');
+                        if (!paginationContainer) {
+                            paginationContainer = document.createElement('div');
+                            paginationContainer.id = 'paginationContainer';
+                            tbody.closest('.table-container').after(paginationContainer);
+                        }
+                        paginationContainer.innerHTML = data.pagination || '';
                     }
                 })
                 .catch(error => console.error('搜索错误:', error));
@@ -773,7 +821,9 @@ $user = Auth::user();
             const searchInput = document.querySelector('input[name="search"]');
             if (searchInput) {
                 searchInput.value = '';
-                searchMembers('');
+                currentPage = 1;
+                currentSearch = '';
+                loadMembers();
             }
         }
         

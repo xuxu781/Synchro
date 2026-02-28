@@ -367,23 +367,20 @@ $user = Auth::user();
                     }
                 });
                 
-                fetch('/api/settings.php?action=update_timeline_order', {
+                fetch('/api/timeline.php?action=update_sort', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
+                    credentials: 'same-origin',
                     body: JSON.stringify({ ids: ids })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (!data.success) {
-                        console.error('排序更新失败:', data.message);
-                        alert('排序更新失败，请刷新页面重试');
-                    }
-                })
-                .catch(error => {
-                    console.error('排序更新错误:', error);
-                });
+                }).then(response => response.json())
+                  .then(result => {
+                      if (!result.success) {
+                          console.error('排序更新失败:', result.message);
+                          alert('排序更新失败，请刷新页面重试');
+                      }
+                  });
             }
         });
     </script>

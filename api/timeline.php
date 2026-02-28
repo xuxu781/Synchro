@@ -17,25 +17,16 @@ APISecurity::checkRateLimit();
 
 header('Content-Type: application/json');
 
-$input = json_decode(file_get_contents('php://input'), true);
-$action = $input['action'] ?? $_POST['action'] ?? $_GET['action'] ?? '';
-
-$publicActions = ['list', 'get'];
-$authRequiredActions = ['update_sort'];
-
-if (in_array($action, $authRequiredActions)) {
-    require_auth();
-}
+$db = Database::getInstance();
+$action = $_GET['action'] ?? '';
 
 switch ($action) {
     case 'list':
         try {
-            $db = Database::getInstance();
             $timelines = $db->fetchAll("SELECT * FROM `lty-company_timeline` WHERE status = 1 ORDER BY sort_order ASC, id ASC");
-            
             json_response(['success' => true, 'data' => $timelines]);
         } catch (Exception $e) {
-            json_response(['error' => 'Failed to fetch timelines'], 500);
+            json_response(['success' => false, 'message' => '获取列表失败: ' . $e->getMessage()], 500);
         }
         break;
         
@@ -43,46 +34,46 @@ switch ($action) {
         $id = isset($_GET['id']) ? intval($_GET['id']) : 0;
         
         if ($id <= 0) {
-            json_response(['error' => 'Invalid timeline ID'], 400);
+            json_response(['success' => false, 'message' => 'ID参数错误'], 400);
         }
         
         try {
-            $db = Database::getInstance();
             $timeline = $db->fetchOne("SELECT * FROM `lty-company_timeline` WHERE id = ?", [$id]);
             
             if (!$timeline) {
-                json_response(['error' => 'Timeline not found'], 404);
+                json_response(['success' => false, 'message' => '记录不存在'], 404);
             }
             
             json_response(['success' => true, 'data' => $timeline]);
         } catch (Exception $e) {
-            json_response(['error' => 'Failed to fetch timeline'], 500);
+            json_response(['success' => false, 'message' => '获取失败: ' . $e->getMessage()], 500);
         }
         break;
         
     case 'update_sort':
-        $data = $input['data'] ?? [];
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            json_response(['success' => false, 'message' => 'Method not allowed'], 405);
+        }
         
-        if (empty($data)) {
-            json_response(['error' => 'Invalid parameters'], 400);
+        require_auth();
+        
+        $data = json_decode(file_get_contents('php://input'), true);
+        
+        if (!isset($data['ids']) || !is_array($data['ids'])) {
+            json_response(['success' => false, 'message' => '数据格式错误'], 400);
         }
         
         try {
-            $db = Database::getInstance();
-            $db->beginTransaction();
-            
-            foreach ($data as $item) {
-                $db->update('`lty-company_timeline`', ['sort_order' => $item['sort_order']], 'id = ?', [$item['id']]);
+            foreach ($data['ids'] as $index => $id) {
+                $db->update('`lty-company_timeline`', ['sort_order' => $index + 1], 'id = ?', [intval($id)]);
             }
             
-            $db->commit();
-            json_response(['success' => true]);
+            json_response(['success' => true, 'message' => '排序更新成功']);
         } catch (Exception $e) {
-            $db->rollback();
-            json_response(['error' => 'Failed to reorder timelines'], 500);
+            json_response(['success' => false, 'message' => '更新排序失败: ' . $e->getMessage()], 500);
         }
         break;
         
     default:
-        json_response(['error' => 'Invalid action'], 400);
+        json_response(['success' => false, 'message' => 'Invalid action'], 400);
 }

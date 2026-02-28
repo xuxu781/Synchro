@@ -283,108 +283,83 @@ $user = Auth::user();
                 }, 3000);
             });
             
+            initDragSort();
+        });
+        
+        function initDragSort() {
             const tbody = document.querySelector('.draggable-tbody');
             if (!tbody) return;
             
+            const rows = tbody.querySelectorAll('.draggable-row');
             let draggedRow = null;
             let placeholder = null;
             
-            const rows = tbody.querySelectorAll('.draggable-row');
-            
-            rows.forEach((row, index) => {
+            rows.forEach(row => {
                 row.addEventListener('dragstart', function(e) {
-                    draggedRow = row;
-                    draggedRow.classList.add('dragging');
-                    e.dataTransfer.effectAllowed = 'move';
-                    e.dataTransfer.setData('text/html', draggedRow.innerHTML);
+                    draggedRow = this;
+                    this.style.opacity = '0.5';
+                    
+                    placeholder = document.createElement('tr');
+                    placeholder.className = 'drag-placeholder';
+                    placeholder.innerHTML = '<td colspan="6">拖放到此处</td>';
                 });
                 
                 row.addEventListener('dragend', function(e) {
-                    if (draggedRow) {
-                        draggedRow.classList.remove('dragging');
-                        if (placeholder) {
-                            placeholder.remove();
-                            placeholder = null;
-                        }
-                        draggedRow = null;
+                    this.style.opacity = '1';
+                    if (placeholder && placeholder.parentNode) {
+                        placeholder.remove();
                     }
-                });
-            });
-            
-            tbody.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                e.dataTransfer.dropEffect = 'move';
-                
-                const targetRow = e.target.closest('.draggable-row');
-                if (targetRow && targetRow !== draggedRow) {
-                    const rect = targetRow.getBoundingClientRect();
-                    const midY = rect.top + rect.height / 2;
-                    
-                    if (!placeholder) {
-                        placeholder = document.createElement('tr');
-                        placeholder.className = 'drag-placeholder';
-                        placeholder.innerHTML = '<td colspan="6" style="padding: 10px; background: #fff9c4; border: 2px dashed #fbc02d; text-align: center; color: #f9a825;">拖放到此处</td>';
-                    }
-                    
-                    if (e.clientY < midY) {
-                        tbody.insertBefore(placeholder, targetRow);
-                    } else {
-                        tbody.insertBefore(placeholder, targetRow.nextSibling);
-                    }
-                }
-            });
-            
-            tbody.addEventListener('drop', function(e) {
-                e.preventDefault();
-                
-                if (draggedRow && placeholder) {
-                    tbody.insertBefore(draggedRow, placeholder);
-                    placeholder.remove();
                     placeholder = null;
-                    
-                    updateSortOrder();
+                    draggedRow = null;
+                    saveSortOrder();
+                });
+                
+                row.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    if (draggedRow && draggedRow !== this) {
+                        const rect = this.getBoundingClientRect();
+                        const midY = rect.top + rect.height / 2;
+                        
+                        if (placeholder.parentNode) {
+                            placeholder.remove();
+                        }
+                        
+                        if (e.clientY < midY) {
+                            this.parentNode.insertBefore(draggedRow, this);
+                        } else {
+                            this.parentNode.insertBefore(draggedRow, this.nextSibling);
+                        }
+                        
+                        if (e.clientY < midY) {
+                            this.parentNode.insertBefore(placeholder, this);
+                        } else {
+                            this.parentNode.insertBefore(placeholder, this.nextSibling);
+                        }
+                    }
+                });
+            });
+        }
+        
+        function saveSortOrder() {
+            const tbody = document.querySelector('.draggable-tbody');
+            if (!tbody) return;
+            
+            const rows = tbody.querySelectorAll('.draggable-row');
+            const ids = Array.from(rows).map(row => parseInt(row.dataset.id));
+            
+            fetch('/api/business.php?action=update_sort', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                credentials: 'same-origin',
+                body: JSON.stringify({ids: ids})
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (!result.success) {
+                    alert('排序更新失败: ' + result.message);
                 }
             });
-            
-            function updateSortOrder() {
-                const rows = tbody.querySelectorAll('.draggable-row');
-                const ids = [];
-                
-                rows.forEach((row, index) => {
-                    const id = row.dataset.id;
-                    ids.push(id);
-                    
-                    const sortCell = row.querySelector('td:nth-child(4)');
-                    if (sortCell) {
-                        sortCell.textContent = index + 1;
-                    }
-                });
-                
-                fetch('../api/business.php', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        action: 'update_sort',
-                        data: rows.map((row, index) => ({
-                            id: row.dataset.id,
-                            sort_order: index + 1
-                        }))
-                    })
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (!data.success) {
-                        console.error('排序更新失败:', data.message);
-                        alert('排序更新失败，请刷新页面重试');
-                    }
-                })
-                .catch(error => {
-                    console.error('排序更新错误:', error);
-                });
-            }
-        });
+        }
     </script>
     <style>
         .business-icon-preview svg {
@@ -396,12 +371,19 @@ $user = Auth::user();
         
         .draggable-row {
             cursor: move;
-            transition: background-color 0.2s ease;
+            transition: all 0.2s ease;
         }
         
-        .draggable-row.dragging {
-            opacity: 0.5;
-            background-color: #f5f5f5;
+        .drag-placeholder {
+            background: #fff9c4 !important;
+        }
+        
+        .drag-placeholder td {
+            padding: 12px;
+            text-align: center;
+            border: 2px dashed #fbc02d;
+            color: #f9a825;
+            font-weight: 500;
         }
     </style>
 </body>
