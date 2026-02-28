@@ -155,11 +155,7 @@ function sendVerificationEmail($to, $code) {
         return ['success' => false, 'message' => '邮件服务未启用或配置不完整'];
     }
     
-    $subjectPrefix = Settings::get('email_subject_prefix', '');
     $subject = '邮箱验证码';
-    if (!empty($subjectPrefix)) {
-        $subject = $subjectPrefix . $subject;
-    }
     
     $contentHtml = '<p class="desc">您好！您正在进行邮箱验证操作，请使用以下验证码完成验证：</p>
         
@@ -207,10 +203,7 @@ function sendReplyEmail($to, $name, $subject, $content) {
         return ['success' => false, 'message' => '邮件服务未启用或配置不完整'];
     }
     
-    $subjectPrefix = Settings::get('email_subject_prefix', '');
-    if (!empty($subjectPrefix)) {
-        $subject = $subjectPrefix . $subject;
-    }
+
     
     $contentHtml = '<p class="desc">亲爱的 ' . htmlspecialchars($name) . '，您好！</p>
         <div class="content-body" style="margin: 24px 0; padding: 20px; background-color: #fafafa; border-radius: 8px; border-left: 4px solid #ff7a00;">
